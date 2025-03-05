@@ -23,17 +23,14 @@
 
 import chromadb
 
-# Connect to ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 chroma_collection = chroma_client.get_or_create_collection(name="codebase")
 
-# Retrieve all documents
 search_results = chroma_collection.get(
     include=["metadatas"],
     limit=100  # Limit to avoid too much data
 )
 
-# Print all function/class names stored
 print("🔍 Stored Functions in ChromaDB:\n")
 for meta in search_results["metadatas"]:
     print(meta["name"])

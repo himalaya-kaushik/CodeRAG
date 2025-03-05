@@ -2,15 +2,12 @@ import chromadb
 import ollama
 from langchain_huggingface import HuggingFaceEmbeddings
 
-# Connect to ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 chroma_collection = chroma_client.get_or_create_collection(name="codebase")
 
-# Load Embedding Model
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 def search_codebase(query: str, top_k=7):
-    """Retrieve top K relevant code snippets based on query"""
     query_embedding = embedding_model.embed_query(query)
 
     search_results = chroma_collection.query(
@@ -33,19 +30,16 @@ def search_codebase(query: str, top_k=7):
     return results
 
 def ask_ollama_about_code(query: str):
-    """Retrieve relevant code and ask Ollama for an explanation or modification."""
     
-    # Retrieve relevant code from ChromaDB
     code_snippets = search_codebase(query)
 
     if not code_snippets:
-        return "❌ No relevant code found."
+        return " No relevant code found."
 
     formatted_code = "\n\n".join(
         [f"📌 Function: {c['name']}\n📄 File: {c['file']}\n```python\n{c['code']}\n```" for c in code_snippets]
     )
 
-    # **More Specific Prompt for Ollama**
     ollama_prompt = f"""
     You are a senior Python developer with expertise in data processing and music analysis.
 

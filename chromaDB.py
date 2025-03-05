@@ -28,24 +28,19 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain.schema import Document
 
-# Step 1: Load the Parsed Code JSON
 with open("parsed_code.json", "r", encoding="utf-8") as f:
     parsed_data = json.load(f)
 
-# Step 2: Initialize ChromaDB in Local Directory
 chroma_client = chromadb.PersistentClient(path="./chroma_db")  # ✅ Auto-persistence
 chroma_collection = chroma_client.get_or_create_collection(name="codebase")
 
-# Step 3: Set Up Sentence Transformer for Embeddings
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Step 4: Store Each Function/Class in ChromaDB
-batch_size = 500  # ✅ Store in batches
+batch_size = 500  
 documents = []
-ids = set()  # Track unique IDs
+ids = set()  
 batch_counter = 0
 
-# 📌 4A: Store README as a Document
 readme_content = parsed_data.get("README", "")
 if readme_content:
     readme_metadata = {
@@ -56,7 +51,6 @@ if readme_content:
     documents.append({"id": "README", "content": readme_content, "metadata": readme_metadata})
     ids.add("README")
 
-# 📌 4B: Store Each Function/Class from Codebase
 for file_path, details in parsed_data["parsed_code"].items():
     for func in details["functions_classes"]:
         unique_id = hashlib.md5(f"{file_path}::{func['name']}::{func['start_line']}".encode()).hexdigest()
@@ -78,7 +72,6 @@ for file_path, details in parsed_data["parsed_code"].items():
 
         documents.append({"id": unique_id, "content": func["code"], "metadata": metadata})
 
-        # ✅ Insert in batches
         if len(documents) >= batch_size:
             batch_counter += 1
             print(f"🚀 Storing Batch {batch_counter} ({len(documents)} docs)...")
@@ -90,7 +83,6 @@ for file_path, details in parsed_data["parsed_code"].items():
             documents.clear()
             ids.clear()  # Reset set
 
-# Step 5: Store Remaining Documents
 if documents:
     batch_counter += 1
     print(f"🚀 Storing Final Batch {batch_counter} ({len(documents)} docs)...")
@@ -102,7 +94,6 @@ if documents:
 
 print(f"✅ Successfully stored all {batch_counter} batches in ChromaDB!")
 
-# ✅ Verify Stored Data
 stored_count = chroma_collection.count()
 print(f"🔍 Immediate Count Check: {stored_count} documents stored in ChromaDB.")
 

@@ -6,14 +6,12 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-# Step 1: Clone the Repository
-repo_url = 'https://github.com/ABasral/music-genre-classification.git'
+repo_url = ''
 clone_dir = repo_url.split('/')[-1].replace('.git', '_codebase')
 
 if not os.path.exists(clone_dir):
     subprocess.run(['git', 'clone', repo_url, clone_dir])
 
-# Step 2: Traverse repo to find Python files & README.md
 python_files = []
 readme_content = ""
 
@@ -34,8 +32,8 @@ class CodeParser(ast.NodeVisitor):
         self.calls = []
         self.global_variables = []
         self.class_methods = {}
-        self.imported_functions = {}  # Track imported functions
-        self.function_references = {}  # Track function usage across files
+        self.imported_functions = {} 
+        self.function_references = {} 
 
     def visit_Import(self, node):
         """ Track imported modules """
@@ -48,7 +46,7 @@ class CodeParser(ast.NodeVisitor):
         if node.module:
             for alias in node.names:
                 self.imports.append(f"{node.module}.{alias.name}")
-                self.imported_functions[alias.name] = node.module  # Track imported function source
+                self.imported_functions[alias.name] = node.module  
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
@@ -64,16 +62,13 @@ class CodeParser(ast.NodeVisitor):
             "inline_comments": []
         }
 
-        # Extract function calls inside this function
         for child in ast.walk(node):
             if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
                 function_data["calls"].append(child.func.id)
-                # Track cross-file references
                 if child.func.id not in self.function_references:
                     self.function_references[child.func.id] = []
                 self.function_references[child.func.id].append(self.file_path)
 
-            # Extract inline comments (single-line comments)
             elif isinstance(child, ast.Expr) and isinstance(child.value, ast.Str):
                 function_data["inline_comments"].append(child.value.s)
 
@@ -93,7 +88,6 @@ class CodeParser(ast.NodeVisitor):
             "code": ast.unparse(node)
         }
 
-        # Collect methods inside the class
         for child in node.body:
             if isinstance(child, ast.FunctionDef):
                 method_name = f"{node.name}.{child.name}"
@@ -126,7 +120,6 @@ class CodeParser(ast.NodeVisitor):
         except SyntaxError:
             return {}
 
-# Step 4: Parse All Python Files
 parsed_data = {}
 for py_file in python_files:
     with open(py_file, 'r', encoding='utf-8') as f:
@@ -134,7 +127,6 @@ for py_file in python_files:
     parser = CodeParser(py_file)
     parsed_data[py_file] = parser.parse(content)
 
-# Step 5: Store Data
 final_output = {
     "README": readme_content,
     "parsed_code": parsed_data
