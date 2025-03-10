@@ -1,3 +1,5 @@
+# file: parser_fixed.py
+
 import os
 import ast
 import json
@@ -6,7 +8,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-repo_url = ''
+repo_url = 'https://github.com/himalaya-kaushik/Backdoor_attack.git'
 clone_dir = repo_url.split('/')[-1].replace('.git', '_codebase')
 
 if not os.path.exists(clone_dir):
@@ -19,11 +21,11 @@ for root, dirs, files in os.walk(clone_dir):
     for file in files:
         if file.endswith(".py"):
             python_files.append(os.path.join(root, file))
-        elif file.lower() == "readme.md":  # Extract README content
+        elif file.lower() == "readme.md":
             with open(os.path.join(root, file), "r", encoding="utf-8") as readme_file:
                 readme_content = readme_file.read()
 
-# Step 3: Enhanced Python Parser
+
 class CodeParser(ast.NodeVisitor):
     def __init__(self, file_path):
         self.file_path = file_path
@@ -32,25 +34,22 @@ class CodeParser(ast.NodeVisitor):
         self.calls = []
         self.global_variables = []
         self.class_methods = {}
-        self.imported_functions = {} 
-        self.function_references = {} 
+        self.imported_functions = {}
+        self.function_references = {}
 
     def visit_Import(self, node):
-        """ Track imported modules """
         for alias in node.names:
             self.imports.append(alias.name)
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
-        """ Track 'from module import function' style imports """
         if node.module:
             for alias in node.names:
                 self.imports.append(f"{node.module}.{alias.name}")
-                self.imported_functions[alias.name] = node.module  
+                self.imported_functions[alias.name] = node.module
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
-        """ Extract functions, docstrings, calls, and inline comments """
         function_data = {
             "type": "Function",
             "name": f"{self.file_path}::{node.name}",
@@ -65,19 +64,15 @@ class CodeParser(ast.NodeVisitor):
         for child in ast.walk(node):
             if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
                 function_data["calls"].append(child.func.id)
-                if child.func.id not in self.function_references:
-                    self.function_references[child.func.id] = []
-                self.function_references[child.func.id].append(self.file_path)
-
+                self.function_references.setdefault(child.func.id, []).append(self.file_path)
             elif isinstance(child, ast.Expr) and isinstance(child.value, ast.Str):
                 function_data["inline_comments"].append(child.value.s)
 
         self.functions_classes.append(function_data)
-        self.calls.append({ "caller": function_data["name"], "calls": function_data["calls"] })
+        self.calls.append({"caller": function_data["name"], "calls": function_data["calls"]})
         self.generic_visit(node)
 
     def visit_ClassDef(self, node):
-        """ Extract classes and methods """
         class_data = {
             "type": "Class",
             "name": f"{self.file_path}::{node.name}",
@@ -98,16 +93,28 @@ class CodeParser(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Assign(self, node):
-        """ Track global variables/constants """
         if isinstance(node.targets[0], ast.Name):
             self.global_variables.append(node.targets[0].id)
         self.generic_visit(node)
 
     def parse(self, content):
-        """ Parse the file content using AST """
         try:
             tree = ast.parse(content)
             self.visit(tree)
+
+            # ✅ Add fallback script if nothing parsed
+            if not self.functions_classes:
+                self.functions_classes.append({
+                    "type": "Script",
+                    "name": f"{self.file_path}",
+                    "start_line": 1,
+                    "end_line": len(content.splitlines()),
+                    "code": content,
+                    "docstring": "",
+                    "calls": [],
+                    "inline_comments": []
+                })
+
             return {
                 "functions_classes": self.functions_classes,
                 "imports": self.imports,
@@ -117,8 +124,10 @@ class CodeParser(ast.NodeVisitor):
                 "imported_functions": self.imported_functions,
                 "function_references": self.function_references
             }
+
         except SyntaxError:
             return {}
+
 
 parsed_data = {}
 for py_file in python_files:
@@ -135,4 +144,4 @@ final_output = {
 with open('parsed_code.json', 'w', encoding='utf-8') as json_file:
     json.dump(final_output, json_file, indent=2)
 
-print("Parsing complete! Data saved in 'parsed_code.json'.")
+print("✅ Parsing complete! All files (including script-only) saved in 'parsed_code.json'")
