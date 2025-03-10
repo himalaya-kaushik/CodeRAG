@@ -5,18 +5,14 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from summary_generator import generate_codebase_summary
 from query_classifier import classify_query
 
-# Load parsed code JSON
 with open("parsed_code.json", "r", encoding="utf-8") as f:
     parsed_data = json.load(f)
 
-# Setup ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 chroma_collection = chroma_client.get_or_create_collection(name="codebase")
 
-# Embedding Model
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# LLM Instance
 llm = Ollama(model="llama3.2")
 
 

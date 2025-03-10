@@ -8,7 +8,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-repo_url = 'https://github.com/himalaya-kaushik/Backdoor_attack.git'
+repo_url = ''
 clone_dir = repo_url.split('/')[-1].replace('.git', '_codebase')
 
 if not os.path.exists(clone_dir):
@@ -144,4 +144,4 @@ final_output = {
 with open('parsed_code.json', 'w', encoding='utf-8') as json_file:
     json.dump(final_output, json_file, indent=2)
 
-print("✅ Parsing complete! All files (including script-only) saved in 'parsed_code.json'")
+print(" Parsing complete! All files (including script-only) saved in 'parsed_code.json'")
