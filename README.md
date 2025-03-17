@@ -31,11 +31,14 @@ To get started with CodeRAG:
 2. **Setup Environment**:
 - Ensure Python 3.8+ is installed.
 - Install dependencies:
+- Make sure you have ollama in you system and change your specific ollama model in chatbot_langchain.py file
   ```
   pip install -r requirements.txt
   ```
 
 3. **Run Examples**:
+- Run `python parser.py` where you put your github repo link in the repo_url.
+- Run `python chromaDB.py` for store the embeddings in vector db .
 - Try running `python chatbot_langchain.py` to interact with the chatbot.
 - Use `python chroma_sanity_check.py` to ensure your ChromaDB is set up correctly.
 
