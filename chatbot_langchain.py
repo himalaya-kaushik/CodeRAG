@@ -1,4 +1,7 @@
+# file: chatbot.py
+
 import json
+import datetime
 import chromadb
 from langchain_community.llms import Ollama
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -13,11 +16,13 @@ chroma_collection = chroma_client.get_or_create_collection(name="codebase")
 
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-llm = Ollama(model="llama3.2")
+llm = Ollama(model="codellama:7b")
 
+def log_query(query: str, results: list):
+    with open("query_log.txt", "a", encoding="utf-8") as log:
+        log.write(f"{datetime.datetime.now()} :: '{query}' → {len(results)} results\n")
 
 def search_codebase(query: str, top_k: int = 5):
-    """Retrieve top K relevant code blocks from ChromaDB"""
     query_embedding = embedding_model.embed_query(query)
     search_results = chroma_collection.query(
         query_embeddings=[query_embedding],
@@ -30,14 +35,15 @@ def search_codebase(query: str, top_k: int = 5):
 
     results = []
     for i in range(len(search_results["ids"][0])):
+        meta = search_results["metadatas"][0][i]
         results.append({
-            "name": search_results["metadatas"][0][i].get("name", ""),
-            "file": search_results["metadatas"][0][i].get("file", ""),
-            "code": search_results["documents"][0][i]
+            "name": meta.get("name", ""),
+            "file": meta.get("file", ""),
+            "code": search_results["documents"][0][i],
+            "preceding_comments": json.loads(meta.get("preceding_comments", "[]"))
         })
 
     return results
-
 
 def ask_codebuddy(query: str, parsed_data: dict) -> str:
     query_type = classify_query(query)
@@ -47,48 +53,57 @@ def ask_codebuddy(query: str, parsed_data: dict) -> str:
         prompt = f"""
 You are a senior Python software engineer.
 
-User asked: **{query}**
+# User Question:
+{query}
 
-Here is the full codebase structure summary:
+# Codebase Summary:
 {summary}
 
-Please analyze and answer accordingly.
+Please analyze and respond accordingly.
 """
     else:
         code_snippets = search_codebase(query, top_k=7)
-        if not code_snippets:
-            return " No relevant code found."
+        log_query(query, code_snippets)
 
-        formatted = "\n\n".join(
-            [f"📌 {c['name']} ({c['file']})\n```python\n{c['code']}\n```" for c in code_snippets]
-        )
+        if not code_snippets:
+            return "🔍 No relevant code found in current context.\nTry rephrasing or ask for a summary."
+
+        formatted = "\n\n".join([
+            f"📌 {c['name']} ({c['file']})\n"
+            f"💬 Comments: {' | '.join(c['preceding_comments'])}\n"
+            f"```python\n{c['code']}\n```"
+            for c in code_snippets
+        ])
 
         if query_type == "suggestion":
             prompt = f"""
 You are an expert Python code reviewer.
 
-User asked: **{query}**
+# User Question:
+{query}
 
-Here is the relevant code for review:
+# Relevant Code Snippets:
 {formatted}
 
-Please suggest improvements, optimizations, or refactoring suggestions.
+# Task:
+Suggest improvements, optimizations, or refactorings.
 """
         else:
             prompt = f"""
-You are a Python code expert.
+You are a Python code assistant.
 
-User asked: **{query}**
+# User Question:
+{query}
 
-Here is the relevant code snippet:
+# Relevant Code Snippets:
 {formatted}
 
-Please explain this in detail or address the query accordingly.
+# Task:
+Explain, describe, or fulfill the above request.
 """
 
     response = llm.invoke(prompt)
     return response
-
 
 def chat_with_codebase():
     print("\n💬 Welcome to CodeBuddy! (type 'exit' to quit)\n")
@@ -99,7 +114,6 @@ def chat_with_codebase():
             break
         response = ask_codebuddy(query, parsed_data)
         print("\n🤖 CodeBuddy:\n", response)
-
 
 if __name__ == "__main__":
     chat_with_codebase()
