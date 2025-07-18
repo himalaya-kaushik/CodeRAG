@@ -16,7 +16,7 @@ def get_project_id() -> str:
 
 def get_history_path(project_id: str) -> str:
     """Return path to the history file for a given project."""
-    history_dir = os.path.join(os.path.expanduser("~"), ".codebuddy_history")
+    history_dir = os.path.join(os.getcwd(), ".codebuddy_history")
     os.makedirs(history_dir, exist_ok=True)
     return os.path.join(history_dir, f"chat_{project_id}.json")
 
