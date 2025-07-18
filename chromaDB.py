@@ -1,5 +1,3 @@
-# file: load_to_chromadb.py
-
 import json
 import hashlib
 import chromadb
@@ -32,7 +30,7 @@ if readme_content:
     }
     documents.append({
         "id": "README",
-        "content": readme_content,
+        "content": readme_content.strip(),
         "metadata": readme_metadata
     })
     ids.add("README")
@@ -42,13 +40,11 @@ for file_path, details in parsed_data["parsed_code"].items():
     for item in details["functions_classes"]:
         item_type = item.get("type", "Unknown")
 
-        # Ensure unique id per item
         unique_id = hashlib.md5(f"{file_path}::{item.get('name')}::{item.get('start_line', 1)}".encode()).hexdigest()
         if unique_id in ids:
             continue
-        ids.add(unique_id
+        ids.add(unique_id)
 
-        )
         metadata = {
             "file": file_path,
             "name": item.get("name"),
@@ -57,31 +53,30 @@ for file_path, details in parsed_data["parsed_code"].items():
             "end_line": item.get("end_line", 1),
             "docstring": item.get("docstring", "") or "",
             "calls": json.dumps(item.get("calls", [])),
-            "inline_comments": json.dumps(item.get("inline_comments", []))
+            "inline_comments": json.dumps(item.get("inline_comments", [])),
+            "preceding_comments": json.dumps(item.get("preceding_comments", []))
         }
 
         documents.append({
             "id": unique_id,
-            "content": item.get("code", ""),
+            "content": item.get("code", "").strip(),
             "metadata": metadata
         })
 
-        # Batch push
         if len(documents) >= batch_size:
             batch_counter += 1
-            print(f"🚀 Storing Batch {batch_counter} ({len(documents)} docs)...")
+            print(f"\U0001F680 Storing Batch {batch_counter} ({len(documents)} docs)...")
             chroma_collection.add(
                 ids=[doc["id"] for doc in documents],
                 documents=[doc["content"] for doc in documents],
                 metadatas=[doc["metadata"] for doc in documents]
             )
             documents.clear()
-            ids.clear()
 
 # Final batch flush
 if documents:
     batch_counter += 1
-    print(f"🚀 Storing Final Batch {batch_counter} ({len(documents)} docs)...")
+    print(f"\U0001F680 Storing Final Batch {batch_counter} ({len(documents)} docs)...")
     chroma_collection.add(
         ids=[doc["id"] for doc in documents],
         documents=[doc["content"] for doc in documents],
@@ -92,4 +87,4 @@ print(f"✅ All {batch_counter} batches stored successfully in ChromaDB!")
 
 # Check count
 stored_count = chroma_collection.count()
-print(f"🔍 ChromaDB Document Count: {stored_count}")
+print(f"\U0001F50D ChromaDB Document Count: {stored_count}")

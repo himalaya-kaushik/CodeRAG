@@ -8,7 +8,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-repo_url = ''
+repo_url = 'https://github.com/himalaya-kaushik/raft-ml-assignment.git'
 clone_dir = repo_url.split('/')[-1].replace('.git', '_codebase')
 
 if not os.path.exists(clone_dir):
@@ -27,8 +27,9 @@ for root, dirs, files in os.walk(clone_dir):
 
 
 class CodeParser(ast.NodeVisitor):
-    def __init__(self, file_path):
+    def __init__(self, file_path, raw_lines):
         self.file_path = file_path
+        self.raw_lines = raw_lines
         self.functions_classes = []
         self.imports = []
         self.calls = []
@@ -58,7 +59,8 @@ class CodeParser(ast.NodeVisitor):
             "code": ast.unparse(node),
             "docstring": ast.get_docstring(node),
             "calls": [],
-            "inline_comments": []
+            "inline_comments": [],
+            "preceding_comments": self.extract_preceding_comments(node.lineno)
         }
 
         for child in ast.walk(node):
@@ -80,7 +82,8 @@ class CodeParser(ast.NodeVisitor):
             "end_line": getattr(node, 'end_lineno', node.lineno),
             "methods": [],
             "docstring": ast.get_docstring(node),
-            "code": ast.unparse(node)
+            "code": ast.unparse(node),
+            "preceding_comments": self.extract_preceding_comments(node.lineno)
         }
 
         for child in node.body:
@@ -97,12 +100,23 @@ class CodeParser(ast.NodeVisitor):
             self.global_variables.append(node.targets[0].id)
         self.generic_visit(node)
 
+    def extract_preceding_comments(self, lineno):
+        comments = []
+        for i in range(lineno - 2, -1, -1):
+            line = self.raw_lines[i].strip()
+            if line.startswith('#'):
+                comments.insert(0, line[1:].strip())
+            elif line == '' or line.startswith(('"""', "'''")):
+                continue
+            else:
+                break
+        return comments
+
     def parse(self, content):
         try:
             tree = ast.parse(content)
             self.visit(tree)
 
-            # ✅ Add fallback script if nothing parsed
             if not self.functions_classes:
                 self.functions_classes.append({
                     "type": "Script",
@@ -112,7 +126,8 @@ class CodeParser(ast.NodeVisitor):
                     "code": content,
                     "docstring": "",
                     "calls": [],
-                    "inline_comments": []
+                    "inline_comments": [],
+                    "preceding_comments": self.extract_preceding_comments(1)
                 })
 
             return {
@@ -133,7 +148,8 @@ parsed_data = {}
 for py_file in python_files:
     with open(py_file, 'r', encoding='utf-8') as f:
         content = f.read()
-    parser = CodeParser(py_file)
+        raw_lines = content.splitlines()
+    parser = CodeParser(py_file, raw_lines)
     parsed_data[py_file] = parser.parse(content)
 
 final_output = {

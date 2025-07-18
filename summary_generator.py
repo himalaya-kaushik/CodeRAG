@@ -22,10 +22,4 @@ def generate_codebase_summary(parsed_data: dict) -> str:
             end = fc.get("end_line", "-")
             summary.append(f"  - [{fc_type}] {name} ({start}-{end})")
 
-    summary_text = "\n".join(summary)
-    return summary_text
-
-with open("parsed_code.json", "r") as file:
-    parsed_data = json.load(file)
-summary = generate_codebase_summary(parsed_data)
-print(summary)
+    return "\n".join(summary)
