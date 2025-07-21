@@ -37,3 +37,15 @@ def append_message(history: list, user_msg: str, assistant_msg: str) -> list:
         "assistant": assistant_msg
     })
     return history
+
+def delete_chat_history(history_path: str) -> bool:
+    """Delete the chat history file from disk if it exists."""
+    try:
+        if os.path.exists(history_path):
+            os.remove(history_path)
+            return True
+        return False
+    except Exception as e:
+        print(f"⚠️ Failed to delete history: {e}")
+        return False
+

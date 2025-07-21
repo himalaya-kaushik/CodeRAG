@@ -12,7 +12,8 @@ from history import (
     get_history_path,
     load_chat_history,
     save_chat_history,
-    append_message
+    append_message,
+    delete_chat_history
 )
 
 # Load parsed codebase
@@ -149,6 +150,17 @@ def chat_with_codebase():
         if query.strip().lower() == "exit":
             print("👋 Exiting CodeBuddy. Chat history saved.")
             break
+        if query.strip().lower() == "delete history":
+            confirmed = input("⚠️ This will erase your current session. Type 'yes' to confirm: ")
+            if confirmed.lower() == "yes":
+                chat_history.clear()
+                deleted = delete_chat_history(history_path)
+                msg = "🧹 History cleared from memory and disk." if deleted else "⚠️ Memory cleared, but file not found."
+                print(msg)
+            else:
+                print("❌ Cancelled. History not deleted.")
+            continue
+
 
         response = ask_codebuddy(query, parsed_data, chat_history)
         print("\n🤖 CodeBuddy:\n", response)
