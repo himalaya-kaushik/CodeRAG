@@ -15,6 +15,13 @@ from history import (
     append_message,
     delete_chat_history
 )
+from cache import (
+    load_cache,
+    save_cache,
+    get_cached_response,
+    set_cached_response
+)
+from context_builder import summarize_history, format_recent_turns
 
 # Load parsed codebase
 with open("parsed_code.json", "r", encoding="utf-8") as f:
@@ -34,7 +41,6 @@ except FileNotFoundError:
     print("⚠️ No model_config.json found. Using default config with phi3:3b.")
 
 print(f"✅ Using Ollama model: {config['model_name']}")
-
 
 # Initialize Ollama LLM
 llm = Ollama(
@@ -80,9 +86,12 @@ def search_codebase(query: str, top_k: int = 5):
     return results
 
 # Handle user question
-from context_builder import summarize_history, format_recent_turns
+def ask_codebuddy(query: str, parsed_data: dict, chat_history: list, cache: dict) -> str:
+    # 🔍 Check cache first
+    cached = get_cached_response(cache, query)
+    if cached:
+        return f"(cached)\n{cached}"
 
-def ask_codebuddy(query: str, parsed_data: dict, chat_history: list) -> str:
     query_type = classify_query(query)
 
     if query_type == "overview":
@@ -99,7 +108,6 @@ def ask_codebuddy(query: str, parsed_data: dict, chat_history: list) -> str:
             for c in code_snippets
         ])
 
-    # Summarize old turns
     memory_summary = summarize_history(llm, chat_history)
     recent_dialogue = format_recent_turns(chat_history)
 
@@ -129,6 +137,9 @@ Assistant:"""
     except Exception as e:
         response = f"❌ Error invoking LLM: {e}\nYour model might be too large for your system. Try a smaller model like phi3:3b."
 
+    # 💾 Cache response
+    set_cached_response(cache, query, response)
+
     return response
 
 # CLI chat loop
@@ -136,6 +147,7 @@ def chat_with_codebase():
     project_id = get_project_id()
     history_path = get_history_path(project_id)
     chat_history = load_chat_history(history_path)
+    cache = load_cache(project_id)
 
     print("\n💬 Welcome to CodeBuddy! (type 'exit' to quit)\n")
 
@@ -161,13 +173,12 @@ def chat_with_codebase():
                 print("❌ Cancelled. History not deleted.")
             continue
 
-
-        response = ask_codebuddy(query, parsed_data, chat_history)
+        response = ask_codebuddy(query, parsed_data, chat_history, cache)
         print("\n🤖 CodeBuddy:\n", response)
 
         chat_history = append_message(chat_history, query, response)
         save_chat_history(history_path, chat_history)
-
+        save_cache(project_id, cache)
 
 if __name__ == "__main__":
     chat_with_codebase()
