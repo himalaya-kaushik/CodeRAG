@@ -7,6 +7,21 @@ from langchain_community.llms import Ollama
 from langchain_huggingface import HuggingFaceEmbeddings
 from summary_generator import generate_codebase_summary
 from query_classifier import classify_query
+from history import (
+    get_project_id,
+    get_history_path,
+    load_chat_history,
+    save_chat_history,
+    append_message,
+    delete_chat_history
+)
+from cache import (
+    load_cache,
+    save_cache,
+    get_cached_response,
+    set_cached_response
+)
+from context_builder import summarize_history, format_recent_turns
 
 # Load parsed codebase
 with open("parsed_code.json", "r", encoding="utf-8") as f:
@@ -26,15 +41,6 @@ except FileNotFoundError:
     print("⚠️ No model_config.json found. Using default config with phi3:3b.")
 
 print(f"✅ Using Ollama model: {config['model_name']}")
-
-# Warn user if they're using a large model
-if "codellama" in config["model_name"].lower():
-    print("""
-⚠️ WARNING:
-You are using codellama-7b. This requires ~10-12 GB RAM.
-On a 16 GB machine, it might crash your system.
-Consider switching to phi3:3b for testing.
-""")
 
 # Initialize Ollama LLM
 llm = Ollama(
@@ -80,80 +86,99 @@ def search_codebase(query: str, top_k: int = 5):
     return results
 
 # Handle user question
-def ask_codebuddy(query: str, parsed_data: dict) -> str:
+def ask_codebuddy(query: str, parsed_data: dict, chat_history: list, cache: dict) -> str:
+    # 🔍 Check cache first
+    cached = get_cached_response(cache, query)
+    if cached:
+        return f"(cached)\n{cached}"
+
     query_type = classify_query(query)
 
     if query_type == "overview":
         summary = generate_codebase_summary(parsed_data)
-        prompt = f"""
-You are a senior Python software engineer.
-
-# User Question:
-{query}
-
-# Codebase Summary:
-{summary}
-
-Please analyze and respond accordingly.
-"""
+        context = summary
     else:
         code_snippets = search_codebase(query, top_k=7)
         log_query(query, code_snippets)
 
-        if not code_snippets:
-            return "🔍 No relevant code found in current context.\nTry rephrasing or ask for a summary."
-
-        formatted = "\n\n".join([
+        context = "\n\n".join([
             f"📌 {c['name']} ({c['file']})\n"
             f"💬 Comments: {' | '.join(c['preceding_comments'])}\n"
             f"```python\n{c['code']}\n```"
             for c in code_snippets
         ])
 
-        if query_type == "suggestion":
-            prompt = f"""
-You are an expert Python code reviewer.
+    memory_summary = summarize_history(llm, chat_history)
+    recent_dialogue = format_recent_turns(chat_history)
 
-# User Question:
-{query}
+    system_prefix = {
+        "overview": "You are a senior Python software engineer.",
+        "suggestion": "You are an expert Python code reviewer.",
+        "function": "You are a Python code assistant."
+    }.get(query_type, "You are a helpful assistant.")
 
-# Relevant Code Snippets:
-{formatted}
+    prompt = f"""{system_prefix}
 
-# Task:
-Suggest improvements, optimizations, or refactorings.
-"""
-        else:
-            prompt = f"""
-You are a Python code assistant.
+# Context:
+{context}
 
-# User Question:
-{query}
+# Summary of previous chat:
+{memory_summary}
 
-# Relevant Code Snippets:
-{formatted}
+# Recent conversation:
+{recent_dialogue}
 
-# Task:
-Explain, describe, or fulfill the above request.
-"""
+# Current question:
+User: {query}
+Assistant:"""
 
     try:
         response = llm.invoke(prompt)
     except Exception as e:
         response = f"❌ Error invoking LLM: {e}\nYour model might be too large for your system. Try a smaller model like phi3:3b."
 
+    # 💾 Cache response
+    set_cached_response(cache, query, response)
+
     return response
 
 # CLI chat loop
 def chat_with_codebase():
+    project_id = get_project_id()
+    history_path = get_history_path(project_id)
+    chat_history = load_chat_history(history_path)
+    cache = load_cache(project_id)
+
     print("\n💬 Welcome to CodeBuddy! (type 'exit' to quit)\n")
+
+    if chat_history:
+        print("📜 Restored previous session:\n")
+        for h in chat_history[-2:]:
+            print(f"📝 You: {h['user']}")
+            print(f"🤖 CodeBuddy: {h['assistant']}\n")
+
     while True:
         query = input("📝 You: ")
         if query.strip().lower() == "exit":
-            print(" Exiting CodeBuddy. Bye!")
+            print("👋 Exiting CodeBuddy. Chat history saved.")
             break
-        response = ask_codebuddy(query, parsed_data)
+        if query.strip().lower() == "delete history":
+            confirmed = input("⚠️ This will erase your current session. Type 'yes' to confirm: ")
+            if confirmed.lower() == "yes":
+                chat_history.clear()
+                deleted = delete_chat_history(history_path)
+                msg = "🧹 History cleared from memory and disk." if deleted else "⚠️ Memory cleared, but file not found."
+                print(msg)
+            else:
+                print("❌ Cancelled. History not deleted.")
+            continue
+
+        response = ask_codebuddy(query, parsed_data, chat_history, cache)
         print("\n🤖 CodeBuddy:\n", response)
+
+        chat_history = append_message(chat_history, query, response)
+        save_chat_history(history_path, chat_history)
+        save_cache(project_id, cache)
 
 if __name__ == "__main__":
     chat_with_codebase()
