@@ -25,7 +25,7 @@ This project aims to leverage the power of RAG to enhance code-related tasks, in
 To get started with CodeRAG:
 
 1. **Clone the Repository**:
-- git clone https://github.com/himalaya-kaushik/CodeRAG.git
+- git clone https://github.com/himalaya-kaushik/CodeRAG.git  
 - cd CodeRAG
 
 2. **Setup Environment**:
