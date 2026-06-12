@@ -1,6 +1,6 @@
 # CodeRAG
 
-Welcome to **CodeRAG**, a repository dedicated to exploring and implementing Retrieval-Augmented Generation (RAG) techniques in code generation and understanding.
+Welcome to **CodeRAG**, a repository dedicated to exploring and implementing Retrieval-Augmented Generation (RAG)techniques in code generation and understanding.
 
 ## Overview
 
